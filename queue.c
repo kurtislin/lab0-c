@@ -126,7 +126,21 @@ int q_size(struct list_head *head)
 /* Delete the middle node in queue */
 bool q_delete_mid(struct list_head *head)
 {
-    // https://leetcode.com/problems/delete-the-middle-node-of-a-linked-list/
+    if (!head || list_empty(head) || list_is_singular(head))
+        return false;
+
+    struct list_head *slow = head->next;
+    struct list_head *fast = head->next->next;
+
+    while (fast != head && fast->next != head) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    element_t *mid = list_entry(slow, element_t, list);
+    list_del(slow);
+    q_release_element(mid);
+
     return true;
 }
 
@@ -177,9 +191,32 @@ void q_reverse(struct list_head *head)
 }
 
 /* Reverse the nodes of the list k at a time */
+/* Reverse the nodes of the list k at a time */
+/* Reverse the nodes of the list k at a time */
 void q_reverseK(struct list_head *head, int k)
 {
-    // https://leetcode.com/problems/reverse-nodes-in-k-group/
+    if (!head || k <= 1)
+        return;
+
+    int count = q_size(head);
+    if (count < k)
+        return;
+
+    struct list_head *cur = head;
+    for (int i = 0; i < count / k; i++) {
+        struct list_head temp_head;
+        INIT_LIST_HEAD(&temp_head);
+
+        for (int j = 0; j < k; j++) {
+            struct list_head *node = cur->next;
+            list_del(node);
+            list_add(node, &temp_head);
+        }
+        list_splice(&temp_head, cur);
+
+        for (int j = 0; j < k; j++)
+            cur = cur->next;
+    }
 }
 
 /* Sort elements of queue in ascending/descending order */
