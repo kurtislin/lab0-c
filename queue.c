@@ -251,7 +251,13 @@ void q_reverseK(struct list_head *head, int k)
 }
 
 /* Sort elements of queue in ascending/descending order */
-void q_sort(struct list_head *head, bool descend) {}
+void q_sort(struct list_head *head, bool descend)
+{
+    if (!head)
+        return;
+
+    merge_sort(head, descend);
+}
 
 /* Remove every node which has a node with a strictly less value anywhere to
  * the right side of it */
@@ -273,6 +279,103 @@ int q_descend(struct list_head *head)
  * order */
 int q_merge(struct list_head *head, bool descend)
 {
-    // https://leetcode.com/problems/merge-k-sorted-lists/
     return 0;
+}
+
+void split_list(struct list_head *head,
+                struct list_head *list1,
+                struct list_head *list2)
+{
+    /* Initialize the two sublists */
+    INIT_LIST_HEAD(list1);
+    INIT_LIST_HEAD(list2);
+
+    /* Empty list case */
+    if (list_empty(head))
+        return;
+
+    /* Single element case - move to list1 */
+    if (list_is_singular(head)) {
+        struct list_head *elem = head->next;
+        list_del(elem);
+        list_add(elem, list1);
+        return;
+    }
+
+    struct list_head *slow = head->next;
+    struct list_head *fast = head->next->next;
+
+    /* Move fast pointer two steps and slow pointer one step */
+    while (fast != head && fast->next != head) {
+        slow = slow->next;
+        fast = fast->next->next;
+    }
+
+    /* Create a temporary list to hold the second half */
+    struct list_head temp_list;
+    INIT_LIST_HEAD(&temp_list);
+
+    /* Cut the list at slow position - this splits the list into two parts */
+    list_cut_position(&temp_list, head, slow);
+
+    list_splice_init(head, list2);
+
+    list_splice_init(&temp_list, list1);
+}
+
+/* Merge two sorted lists */
+void merge_lists(struct list_head *result,
+                 struct list_head *list1,
+                 struct list_head *list2,
+                 bool descend)
+{
+    INIT_LIST_HEAD(result);
+
+    /* Process elements until one list is empty */
+    while (!list_empty(list1) && !list_empty(list2)) {
+        const element_t *e1 = list_entry(list1->next, element_t, list);
+        const element_t *e2 = list_entry(list2->next, element_t, list);
+        struct list_head *node;
+
+        /* Compare strings and pick the appropriate node */
+        int cmp = strcmp(e1->value, e2->value);
+        if ((!descend && cmp <= 0) || (descend && (cmp >= 0))) {
+            node = list1->next;
+            list_del(node);
+        } else {
+            node = list2->next;
+            list_del(node);
+        }
+        /* Add the node to the end of the result list */
+        list_add_tail(node, result);
+    }
+
+    /* Add any remaining nodes from list1 using list_splice_tail */
+    if (!list_empty(list1))
+        list_splice_tail(list1, result);
+
+    /* Add any remaining nodes from list2 using list_splice_tail */
+    if (!list_empty(list2))
+        list_splice_tail(list2, result);
+}
+
+/* Recursive merge sort function */
+void merge_sort(struct list_head *head, bool descend)
+{
+    /* Base case: empty or single node list is already sorted */
+    if (list_empty(head) || list_is_singular(head))
+        return;
+
+    /* Create temporary lists for splitting */
+    struct list_head list1, list2;
+
+    /* Split the list into two parts */
+    split_list(head, &list1, &list2);
+
+    /* Recursively sort both sublists */
+    merge_sort(&list1, descend);
+    merge_sort(&list2, descend);
+
+    /* Merge the sorted sublists */
+    merge_lists(head, &list1, &list2, descend);
 }
