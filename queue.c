@@ -4,6 +4,15 @@
 
 #include "queue.h"
 
+void merge_sort(struct list_head *head, bool descend);
+void split_list(struct list_head *head,
+                struct list_head *list1,
+                struct list_head *list2);
+void merge_lists(struct list_head *result,
+                 struct list_head *list1,
+                 struct list_head *list2,
+                 bool descend);
+
 /* Create an empty queue */
 struct list_head *q_new()
 {
@@ -379,5 +388,3 @@ void merge_sort(struct list_head *head, bool descend)
     /* Merge the sorted sublists */
     merge_lists(head, &list1, &list2, descend);
 }
-
-void merge_sort(struct list_head *head, bool descend);
