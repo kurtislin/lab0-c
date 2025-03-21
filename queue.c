@@ -379,3 +379,5 @@ void merge_sort(struct list_head *head, bool descend)
     /* Merge the sorted sublists */
     merge_lists(head, &list1, &list2, descend);
 }
+
+void merge_sort(struct list_head *head, bool descend);
