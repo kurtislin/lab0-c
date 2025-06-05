@@ -272,23 +272,116 @@ void q_sort(struct list_head *head, bool descend)
  * the right side of it */
 int q_ascend(struct list_head *head)
 {
-    // https://leetcode.com/problems/remove-nodes-from-linked-list/
-    return 0;
+    if (!head || list_empty(head) || list_is_singular(head))
+        return q_size(head);  // 返回處理後的隊列大小
+
+    // 使用單調棧的思想，反向處理列表
+    struct list_head result;
+    INIT_LIST_HEAD(&result);
+
+    struct list_head *current = head->prev;  // 從尾部開始
+
+    // 從尾部向頭部處理
+    while (current != head) {
+        struct list_head *prev =
+            current->prev;  // 保存前一個節點，因為當前節點可能被刪除
+        element_t *elem = list_entry(current, element_t, list);
+
+        // 如果結果鏈表為空，或者當前值小於等於結果鏈表的第一個節點的值，則保留
+        if (list_empty(&result) ||
+            strcmp(elem->value,
+                   list_entry(result.next, element_t, list)->value) <= 0) {
+            list_del(current);
+            list_add(current, &result);  // 加入結果鏈表頭部
+        } else {
+            // 否則刪除節點
+            list_del(current);
+            q_release_element(elem);
+        }
+
+        current = prev;
+    }
+
+    // 將結果鏈表合併回原始頭部
+    list_splice(&result, head);
+
+    return q_size(head);  // 返回處理後的隊列大小
 }
 
 /* Remove every node which has a node with a strictly greater value anywhere to
  * the right side of it */
 int q_descend(struct list_head *head)
 {
-    // https://leetcode.com/problems/remove-nodes-from-linked-list/
-    return 0;
+    if (!head || list_empty(head) || list_is_singular(head))
+        return q_size(head);
+
+    // 使用單調棧的思想，反向處理列表
+    struct list_head result;
+    INIT_LIST_HEAD(&result);
+
+    struct list_head *current = head->prev;  // 從尾部開始
+
+    // 從尾部向頭部處理
+    while (current != head) {
+        struct list_head *prev =
+            current->prev;  // 保存前一個節點，因為當前節點可能被刪除
+        element_t *elem = list_entry(current, element_t, list);
+
+        // 如果結果鏈表為空，或者當前值大於等於結果鏈表的第一個節點的值，則保留
+        if (list_empty(&result) ||
+            strcmp(elem->value,
+                   list_entry(result.next, element_t, list)->value) >= 0) {
+            list_del(current);
+            list_add(current, &result);  // 加入結果鏈表頭部
+        } else {
+            // 否則刪除節點
+            list_del(current);
+            q_release_element(elem);
+        }
+
+        current = prev;
+    }
+
+    // 將結果鏈表合併回原始頭部
+    list_splice(&result, head);
+
+    return q_size(head);
 }
 
 /* Merge all the queues into one sorted queue, which is in ascending/descending
  * order */
 int q_merge(struct list_head *head, bool descend)
 {
-    return 0;
+    if (!head || list_empty(head))
+        return 0;
+
+    // If there's only one queue, return its size
+    if (list_is_singular(head)) {
+        queue_contex_t *single_queue =
+            list_entry(head->next, queue_contex_t, chain);
+        return q_size(single_queue->q);
+    }
+
+    // Get the first queue - this will hold the final result
+    queue_contex_t *first_queue = list_entry(head->next, queue_contex_t, chain);
+
+    // Collect all elements from all queues into the first queue
+    struct list_head *current = head->next->next;
+    while (current != head) {
+        queue_contex_t *queue_ctx = list_entry(current, queue_contex_t, chain);
+
+        // Move all elements from current queue to first queue
+        if (!list_empty(queue_ctx->q)) {
+            list_splice_tail_init(queue_ctx->q, first_queue->q);
+        }
+
+        current = current->next;
+    }
+
+    // Sort the merged queue
+    q_sort(first_queue->q, descend);
+
+    return q_size(first_queue->q);
 }
 
 void split_list(struct list_head *head,
