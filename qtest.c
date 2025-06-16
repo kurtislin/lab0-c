@@ -23,6 +23,9 @@
 #include "list.h"
 #include "random.h"
 
+/* External function declaration - defined in queue.c */
+extern void q_set_kernel_sort(bool enable);
+
 /* Shannon entropy */
 extern double shannon_entropy(const uint8_t *input_data);
 extern int show_entropy;
@@ -576,6 +579,153 @@ static bool do_size(int argc, char *argv[])
     return ok && !error_check();
 }
 
+/* Switch between original merge sort and Linux kernel list_sort */
+static bool do_ksort(int argc, char *argv[])
+{
+    if (argc != 2) {
+        report(1, "%s requires one argument: 0 (original) or 1 (kernel)",
+               argv[0]);
+        return false;
+    }
+
+    int enable = atoi(argv[1]);
+    if (enable != 0 && enable != 1) {
+        report(1, "Argument must be 0 or 1");
+        return false;
+    }
+
+    q_set_kernel_sort(enable);
+    report(1, "Sorting algorithm set to: %s",
+           enable ? "Linux kernel list_sort" : "Original merge sort");
+
+    return true;
+}
+
+/* Performance benchmark for comparing sorting algorithms */
+static bool do_benchmark(int argc, char *argv[])
+{
+    if (argc < 2 || argc > 3) {
+        report(1, "%s requires 1-2 arguments: size [distribution_type]",
+               argv[0]);
+        report(1,
+               "distribution_type: random (default), sorted, reverse, partial");
+        return false;
+    }
+
+    int size = atoi(argv[1]);
+    if (size <= 0 || size > 1000000) {
+        report(1, "Size must be between 1 and 1000000");
+        return false;
+    }
+
+    const char *dist_type = (argc == 3) ? argv[2] : "random";
+
+    if (strcmp(dist_type, "random") != 0 && strcmp(dist_type, "sorted") != 0 &&
+        strcmp(dist_type, "reverse") != 0 &&
+        strcmp(dist_type, "partial") != 0) {
+        report(1,
+               "Invalid distribution type. Use: random, sorted, reverse, or "
+               "partial");
+        return false;
+    }
+
+    /* Create test data */
+    struct list_head *test_head1 = q_new();
+    struct list_head *test_head2 = q_new();
+
+    if (!test_head1 || !test_head2) {
+        report(1, "Failed to create test queues");
+        if (test_head1)
+            q_free(test_head1);
+        if (test_head2)
+            q_free(test_head2);
+        return false;
+    }
+
+    /* Generate test data based on distribution type */
+    report(1, "Generating %d elements with %s distribution...", size,
+           dist_type);
+
+    for (int i = 0; i < size; i++) {
+        char value[16];
+
+        if (strcmp(dist_type, "random") == 0) {
+            snprintf(value, sizeof(value), "%08d", rand() % 100000);
+        } else if (strcmp(dist_type, "sorted") == 0) {
+            snprintf(value, sizeof(value), "%08d", i);
+        } else if (strcmp(dist_type, "reverse") == 0) {
+            snprintf(value, sizeof(value), "%08d", size - i - 1);
+        } else if (strcmp(dist_type, "partial") == 0) {
+            /* Partially sorted: 80% sorted, 20% random */
+            if (i < size * 0.8) {
+                snprintf(value, sizeof(value), "%08d", i);
+            } else {
+                snprintf(value, sizeof(value), "%08d", rand() % 100000);
+            }
+        }
+
+        /* Insert into both test queues */
+        if (!q_insert_tail(test_head1, value) ||
+            !q_insert_tail(test_head2, value)) {
+            report(1, "Failed to insert test data");
+            q_free(test_head1);
+            q_free(test_head2);
+            return false;
+        }
+    }
+
+    /* Benchmark original merge sort */
+    report(1, "Testing original merge sort performance...");
+    q_set_kernel_sort(false);
+
+    struct timespec start_time, end_time;
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+
+    q_sort(test_head1, false);
+
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+    long original_ns = (end_time.tv_sec - start_time.tv_sec) * 1000000000L +
+                       (end_time.tv_nsec - start_time.tv_nsec);
+    double original_ms = original_ns / 1000000.0;
+
+    /* Benchmark Linux kernel list_sort */
+    report(1, "Testing Linux kernel list_sort performance...");
+    q_set_kernel_sort(true);
+
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+
+    q_sort(test_head2, false);
+
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+    long kernel_ns = (end_time.tv_sec - start_time.tv_sec) * 1000000000L +
+                     (end_time.tv_nsec - start_time.tv_nsec);
+    double kernel_ms = kernel_ns / 1000000.0;
+
+    /* Print results */
+    report(1, "=== Benchmark Results ===");
+    report(1, "Data size: %d elements", size);
+    report(1, "Distribution: %s", dist_type);
+    report(1, "Original merge sort: %.3f ms", original_ms);
+    report(1, "Linux kernel list_sort: %.3f ms", kernel_ms);
+
+    if (original_ms > 0 && kernel_ms > 0) {
+        double speedup = original_ms / kernel_ms;
+        if (speedup > 1.0) {
+            report(1, "Kernel sort is %.2f times faster", speedup);
+        } else {
+            report(1, "Original sort is %.2f times faster", 1.0 / speedup);
+        }
+    }
+
+    /* Clean up */
+    q_free(test_head1);
+    q_free(test_head2);
+
+    return true;
+}
+
 bool do_sort(int argc, char *argv[])
 {
     if (argc != 1) {
@@ -1080,6 +1230,10 @@ static void console_init()
         "[str]");
     ADD_COMMAND(reverse, "Reverse queue", "");
     ADD_COMMAND(sort, "Sort queue in ascending/descending order", "");
+    ADD_COMMAND(ksort, "Switch sorting algorithm (0=original, 1=kernel)",
+                "0|1");
+    ADD_COMMAND(benchmark, "Performance benchmark for sorting algorithms",
+                "size [distribution_type]");
     ADD_COMMAND(size, "Compute queue size n times (default: n == 1)", "[n]");
     ADD_COMMAND(show, "Show queue contents", "");
     ADD_COMMAND(dm, "Delete middle node in queue", "");

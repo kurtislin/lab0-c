@@ -2,7 +2,35 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "list_sort.h"
 #include "queue.h"
+
+/* Global variable to control sorting algorithm */
+static bool use_kernel_sort = false;
+static bool kernel_sort_descend = false;
+
+/* Comparison function for Linux kernel list_sort */
+static int cmp_elements(void *priv,
+                        const struct list_head *a,
+                        const struct list_head *b)
+{
+    const element_t *ea = list_entry(a, element_t, list);
+    const element_t *eb = list_entry(b, element_t, list);
+
+    int result = strcmp(ea->value, eb->value);
+
+    /* For descending order, reverse the comparison */
+    if (kernel_sort_descend)
+        result = -result;
+
+    return result;
+}
+
+/* Function to enable/disable kernel sort */
+void q_set_kernel_sort(bool enable)
+{
+    use_kernel_sort = enable;
+}
 
 void merge_sort(struct list_head *head, bool descend);
 void split_list(struct list_head *head,
@@ -265,7 +293,12 @@ void q_sort(struct list_head *head, bool descend)
     if (!head)
         return;
 
-    merge_sort(head, descend);
+    if (use_kernel_sort) {
+        kernel_sort_descend = descend;
+        list_sort(NULL, head, cmp_elements);
+    } else {
+        merge_sort(head, descend);
+    }
 }
 
 /* Remove every node which has a node with a strictly less value anywhere to
